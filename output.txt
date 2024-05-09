@@ -1,0 +1,2 @@
+ERROR: cluster has already been initialized
+Failed running "init"

@@ -1,0 +1,71 @@
+services:
+
+  roach-node-1:
+    container_name: roach-node-1
+    hostname: roach-node-1
+    image: cockroachdb/cockroach:latest
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    volumes:
+      - roach-1:/cockroach/cockroach-data
+    command: 
+      - start
+      - --advertise-addr=roach-node-1:26357 
+      - --http-addr=roach-node-1:8080 
+      - --listen-addr=roach-node-1:26357 
+      - --sql-addr=roach-node-1:26257 
+      - --insecure 
+      - --join=roach-node-1:26357,roach-node-2:26357,roach-node-3:26357
+
+  roach-node-2:
+    container_name: roach-node-2
+    hostname: roach-node-2
+    image: cockroachdb/cockroach:latest
+    volumes:
+      - roach-2:/cockroach/cockroach-data
+    command: 
+      - start
+      - --advertise-addr=roach-node-2:26357 
+      - --http-addr=roach-node-2:8080 
+      - --listen-addr=roach-node-2:26357 
+      - --sql-addr=roach-node-2:26257 
+      - --insecure 
+      - --join=roach-node-1:26357,roach-node-2:26357,roach-node-3:26357 
+
+  roach-node-3:
+    container_name: roach-node-3
+    hostname: roach-node-3
+    image: cockroachdb/cockroach:latest
+    volumes:
+      - roach-3:/cockroach/cockroach-data
+    command: 
+      - start
+      - --advertise-addr=roach-node-3:26357 
+      - --http-addr=roach-node-3:8080 
+      - --listen-addr=roach-node-3:26357 
+      - --sql-addr=roach-node-3:26257 
+      - --insecure 
+      - --join=roach-node-1:26357,roach-node-2:26357,roach-node-3:26357
+  feed:
+    build: .
+    container_name: feed
+    hostname: feed
+    environment:
+      - DB_HOST=roach-node-1
+      - DB_USER=root
+      - DB_PORT=26257
+      - DB_NAME=defaultdb
+    ports:
+      - "3000:3000"
+    volumes: 
+      - ./:/app
+    depends_on:
+      - roach-node-1
+      - roach-node-2
+      - roach-node-3
+
+volumes:
+  roach-1:
+  roach-2:
+  roach-3:
