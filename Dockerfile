@@ -8,6 +8,7 @@ RUN go mod download
 RUN go install github.com/cosmtrek/air@latest
 
 COPY . .
+RUN rm -rf .git
 
 CMD ["air", "-c", ".air.toml"]
 

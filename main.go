@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
-	"os"
 
+	"github.com/Alieksieiev0/task-feed/broker"
+	"github.com/Alieksieiev0/task-feed/model"
+	"github.com/Alieksieiev0/task-feed/repository"
+	"github.com/Alieksieiev0/task-feed/storage"
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func main() {
@@ -16,42 +19,38 @@ func main() {
 }
 
 func run() error {
-	db, err := initDB()
+	db, err := storage.NewPostgreSQL().Open(model.Message{})
 	if err != nil {
 		return err
 	}
-	err = db.AutoMigrate(&Message{})
-	if err != nil {
-		return err
-	}
+	rep := repository.NewGormRepository[model.Message](db)
 	app := fiber.New()
-
-	app.Post("/messages", func(c *fiber.Ctx) error {
-		m := &Message{}
-		fmt.Println("sturct111")
-		fmt.Println(m)
-		if err := c.BodyParser(m); err != nil {
+	brok, err := broker.NewRabbitMQ("some", "some")
+	if err != nil {
+		return err
+	}
+	msgChan, errChan := brok.Run(func(r io.Reader) error {
+		m := &model.Message{}
+		err := json.NewDecoder(r).Decode(m)
+		if err != nil {
 			return err
 		}
-		fmt.Println(m)
-		fmt.Println(db.Model(&Message{}).Save(m).Error)
+		rep.Save(context.Background(), m)
+		return nil
+	})
+
+	go func() {
+		for err := range errChan {
+			fmt.Println(err)
+		}
+	}()
+
+	app.Post("/messages", func(c *fiber.Ctx) error {
+		go func() {
+			msgChan <- string(c.Body())
+		}()
 		return nil
 	})
 
 	return app.Listen(":3000")
-}
-
-func initDB() (*gorm.DB, error) {
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"),
-		os.Getenv("DB_PORT"),
-	)
-
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
 }
