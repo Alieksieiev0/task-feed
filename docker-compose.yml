@@ -57,6 +57,11 @@ services:
       ports:
         - "5672:5672"
         - "15672:15672"
+      healthcheck:
+        test: rabbitmq-diagnostics -q ping
+        interval: 30s
+        timeout: 30s
+        retries: 3
 
   feed:
     build: .
@@ -75,10 +80,15 @@ services:
     volumes: 
       - ./:/app
     depends_on:
-      - roach-node-1
-      - roach-node-2
-      - roach-node-3
-      - rabbitmq
+      roach-node-1:
+        condition: service_started
+      roach-node-2:
+        condition: service_started
+      roach-node-3:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
 
 volumes:
   roach-1:
