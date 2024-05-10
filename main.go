@@ -1,13 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
+	"sync"
+	"time"
 
-	"github.com/Alieksieiev0/task-feed/broker"
+	broker "github.com/Alieksieiev0/task-feed/action"
 	"github.com/Alieksieiev0/task-feed/model"
 	"github.com/Alieksieiev0/task-feed/repository"
 	"github.com/Alieksieiev0/task-feed/storage"
@@ -18,6 +20,9 @@ func main() {
 	log.Fatal(run())
 }
 
+var messages []string
+var mu sync.Mutex
+
 func run() error {
 	db, err := storage.NewPostgreSQL().Open(model.Message{})
 	if err != nil {
@@ -25,30 +30,57 @@ func run() error {
 	}
 	rep := repository.NewGormRepository[model.Message](db)
 	app := fiber.New()
-	brok, err := broker.NewRabbitMQ("some", "some")
+	conn, err := storage.NewRabbitMQ().Open()
 	if err != nil {
 		return err
 	}
-	msgChan, errChan := brok.Run(func(r io.Reader) error {
+	publisher, err := broker.NewRabbitMQPublisher(conn)
+	if err != nil {
+		return err
+	}
+	consumer, err := broker.NewRabbitMQConsumer(conn, "some", func(body []byte) error {
 		m := &model.Message{}
-		err := json.NewDecoder(r).Decode(m)
+		err = json.Unmarshal(body, m)
 		if err != nil {
 			return err
 		}
-		rep.Save(context.Background(), m)
-		return nil
+		return rep.Save(context.Background(), m)
 	})
+	if err != nil {
+		return err
+	}
 
+	consumerErr := make(chan error)
 	go func() {
-		for err := range errChan {
+		err := consumer.Run(consumerErr)
+		if err != nil {
+			publisher.Close()
+		}
+	}()
+	go func() {
+		for err := range consumerErr {
 			fmt.Println(err)
 		}
 	}()
 
+	fmt.Println("----")
 	app.Post("/messages", func(c *fiber.Ctx) error {
-		go func() {
-			msgChan <- string(c.Body())
-		}()
+		return publisher.Run(c.Body())
+	})
+
+	fmt.Println("----")
+	app.Get("/messages", func(c *fiber.Ctx) error {
+		c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
+			for i := 0; i < 10; i++ {
+				fmt.Fprintf(w, "this is a message number %d", i)
+
+				// Do not forget flushing streamed data to the client.
+				if err := w.Flush(); err != nil {
+					return
+				}
+				time.Sleep(time.Second)
+			}
+		})
 		return nil
 	})
 

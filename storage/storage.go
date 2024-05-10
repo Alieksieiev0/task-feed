@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/wagslane/go-rabbitmq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -33,5 +34,24 @@ func (p *PostgreSQL) Open(entities ...any) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	return db, db.AutoMigrate(entities)
+	return db, db.AutoMigrate(entities...)
+}
+
+func NewRabbitMQ() *RabbitMQ {
+	return &RabbitMQ{}
+}
+
+type RabbitMQ struct {
+}
+
+func (r *RabbitMQ) Open() (*rabbitmq.Conn, error) {
+	return rabbitmq.NewConn(
+		fmt.Sprintf(
+			"amqp://%s:%s@%s",
+			os.Getenv("RABBITMQ_USER"),
+			os.Getenv("RABBITMQ_PASS"),
+			os.Getenv("RABBITMQ_HOST"),
+		),
+		rabbitmq.WithConnectionOptionsLogging,
+	)
 }

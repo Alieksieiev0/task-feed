@@ -47,6 +47,17 @@ services:
       - --sql-addr=roach-node-3:26257 
       - --insecure 
       - --join=roach-node-1:26357,roach-node-2:26357,roach-node-3:26357
+
+  rabbitmq:
+      image: rabbitmq:management
+      container_name: rabbitmq
+      environment:
+        - RABBITMQ_DEFAULT_USER=guest
+        - RABBITMQ_DEFAULT_PASS=guest
+      ports:
+        - "5672:5672"
+        - "15672:15672"
+
   feed:
     build: .
     container_name: feed
@@ -56,6 +67,9 @@ services:
       - DB_USER=root
       - DB_PORT=26257
       - DB_NAME=defaultdb
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - RABBITMQ_HOST=rabbitmq
     ports:
       - "3000:3000"
     volumes: 
@@ -64,6 +78,7 @@ services:
       - roach-node-1
       - roach-node-2
       - roach-node-3
+      - rabbitmq
 
 volumes:
   roach-1:
