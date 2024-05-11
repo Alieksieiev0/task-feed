@@ -31,7 +31,15 @@ type HttpServer struct {
 
 func (h *HttpServer) Run(addr string) error {
 	h.app.Post("/messages", func(c *fiber.Ctx) error {
-		return h.broker.Publish(c.Body())
+		if len(c.Body()) == 0 {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "empty request body"})
+		}
+		if err := h.broker.Publish(c.Body()); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+
+		c.Status(fiber.StatusCreated)
+		return nil
 	})
 
 	h.app.Get("/messages", func(c *fiber.Ctx) error {
