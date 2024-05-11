@@ -10,14 +10,12 @@ import (
 )
 
 func NewHttpServer(
-	addr string,
 	streamer app.Streamer[string],
 	broker app.Broker[[]byte],
 	feed app.Feed[[]byte, model.Message],
 ) *HttpServer {
 	return &HttpServer{
 		app:      fiber.New(),
-		addr:     addr,
 		streamer: streamer,
 		broker:   broker,
 		feed:     feed,
@@ -26,22 +24,26 @@ func NewHttpServer(
 
 type HttpServer struct {
 	app      *fiber.App
-	addr     string
 	streamer app.Streamer[string]
 	broker   app.Broker[[]byte]
 	feed     app.Feed[[]byte, model.Message]
 }
 
-func (h *HttpServer) Run() error {
+func (h *HttpServer) Run(addr string) error {
 	h.app.Post("/messages", func(c *fiber.Ctx) error {
 		return h.broker.Publish(c.Body())
 	})
 
 	h.app.Get("/messages", func(c *fiber.Ctx) error {
+		c.Set("Cache-Control", "no-cache")
+		c.Set("Connection", "keep-alive")
+		c.Set("Transfer-Encoding", "chunked")
+
 		messages, err := h.feed.GetMessages()
 		if err != nil {
-			return err
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
+
 		c.Context().SetBodyStreamWriter(func(w *bufio.Writer) {
 			ctx, cancel := context.WithCancel(context.Background())
 			client := NewHttpClient(w, cancel)
@@ -50,15 +52,15 @@ func (h *HttpServer) Run() error {
 					return
 				}
 			}
+
 			h.streamer.AddClient(client)
-			for range ctx.Done() {
-				return
-			}
+			<-ctx.Done()
+			return
 		})
 		return nil
 	})
 
-	return h.app.Listen(h.addr)
+	return h.app.Listen(addr)
 }
 
 func (h *HttpServer) Close() error {

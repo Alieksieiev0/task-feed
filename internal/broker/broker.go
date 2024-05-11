@@ -9,7 +9,7 @@ import (
 
 func NewRabbitMQBroker(
 	storage app.Storage[func(*rabbitmq.ConnectionOptions), *rabbitmq.Conn],
-	queue string,
+	queue, routing, exchange string,
 	callback func([]byte) error,
 ) (*RabbitMQBroker, error) {
 	conn, err := storage.Open(rabbitmq.WithConnectionOptionsLogging)
@@ -20,8 +20,8 @@ func NewRabbitMQBroker(
 	consumer, err := rabbitmq.NewConsumer(
 		conn,
 		queue,
-		rabbitmq.WithConsumerOptionsRoutingKey("my_routing_key"),
-		rabbitmq.WithConsumerOptionsExchangeName("events"),
+		rabbitmq.WithConsumerOptionsRoutingKey(routing),
+		rabbitmq.WithConsumerOptionsExchangeName(exchange),
 		rabbitmq.WithConsumerOptionsExchangeDeclare,
 		rabbitmq.WithConsumerOptionsQueueDurable,
 		rabbitmq.WithConsumerOptionsConcurrency(10),
@@ -34,28 +34,36 @@ func NewRabbitMQBroker(
 	publisher, err := rabbitmq.NewPublisher(
 		conn,
 		rabbitmq.WithPublisherOptionsLogging,
-		rabbitmq.WithPublisherOptionsExchangeName("events"),
+		rabbitmq.WithPublisherOptionsExchangeName(exchange),
 		rabbitmq.WithPublisherOptionsExchangeDeclare,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &RabbitMQBroker{consumer: consumer, publisher: publisher, callback: callback}, nil
+	return &RabbitMQBroker{
+		consumer:  consumer,
+		publisher: publisher,
+		routing:   routing,
+		exchange:  exchange,
+		callback:  callback,
+	}, nil
 }
 
 type RabbitMQBroker struct {
 	publisher *rabbitmq.Publisher
 	consumer  *rabbitmq.Consumer
+	routing   string
+	exchange  string
 	callback  func([]byte) error
 }
 
 func (r *RabbitMQBroker) Publish(message []byte) error {
 	return r.publisher.Publish(
 		message,
-		[]string{"my_routing_key"},
+		[]string{r.routing},
 		rabbitmq.WithPublishOptionsContentType("application/json"),
-		rabbitmq.WithPublishOptionsExchange("events"),
+		rabbitmq.WithPublishOptionsExchange(r.exchange),
 	)
 }
 

@@ -34,7 +34,7 @@ type Broker[T any] interface {
 }
 
 type Server interface {
-	Run() error
+	Run(addr string) error
 	ErrorProneCloseable
 }
 
@@ -43,9 +43,9 @@ type Bot[T any] interface {
 	Closeable
 }
 
-type Repository[T any] interface {
-	Get(ctx context.Context) ([]T, error)
-	Save(ctx context.Context, entity *T) error
+type Repository[T any, V any] interface {
+	Get(ctx context.Context, opts ...V) ([]T, error)
+	Save(ctx context.Context, entity *T, opts ...V) error
 }
 
 type Storage[Input any, Output any] interface {

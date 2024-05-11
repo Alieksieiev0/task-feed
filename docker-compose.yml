@@ -59,8 +59,8 @@ services:
         - "15672:15672"
       healthcheck:
         test: rabbitmq-diagnostics -q ping
-        interval: 30s
-        timeout: 30s
+        interval: 15s
+        timeout: 15s
         retries: 3
 
   feed:

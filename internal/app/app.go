@@ -36,8 +36,10 @@ func (t TwitterFeed) Run() error {
 	g.Go(func() error {
 		return t.bot.Run(t.templateModel)
 	})
+	g.Go(func() error {
+		return t.server.Run(":3000")
+	})
 	g.Go(t.broker.Consume)
-	g.Go(t.server.Run)
 
 	if err := g.Wait(); err != nil {
 		t.streamer.Close()

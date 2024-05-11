@@ -25,11 +25,13 @@ func main() {
 	streamer := streamer.NewStringStreamer()
 	broker, err := broker.NewRabbitMQBroker(
 		storage.NewRabbitMQ(),
-		"some",
+		"messages",
+		"message_create",
+		"message_events",
 		func(body []byte) error {
-			message, err := feed.SaveMessage(body)
+			message, messageErr := feed.SaveMessage(body)
 			if err != nil {
-				return err
+				return messageErr
 			}
 			go streamer.AddMessage(message.String())
 			return nil
@@ -39,7 +41,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server := transport.NewHttpServer(":3000", streamer, broker, feed)
+	server := transport.NewHttpServer(streamer, broker, feed)
 	bot := bot.NewDelayBasedBot(time.Second*5, broker)
 
 	twitterFeed := app.NewTwitterFeed(

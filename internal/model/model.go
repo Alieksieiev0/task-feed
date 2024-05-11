@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const YYYYMMDDHHNNSS24h = "2006-01-02 03:04:05"
+
 type Base struct {
 	ID        string         `gorm:"type:uuid" json:"id"`
 	CreatedAt time.Time      `                 json:"created_at"`
@@ -28,5 +30,5 @@ type Message struct {
 }
 
 func (m Message) String() string {
-	return fmt.Sprintf("[%s]: %s", m.CreatedAt, m.Content)
+	return fmt.Sprintf("[%s]: %s", m.CreatedAt.Format(YYYYMMDDHHNNSS24h), m.Content)
 }

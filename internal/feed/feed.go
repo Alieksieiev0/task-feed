@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 
 	"github.com/Alieksieiev0/task-feed/internal/app"
+	"gorm.io/gorm"
 )
 
-func NewJsonFeed[T app.Model](repository app.Repository[T]) *JsonFeed[T] {
+func NewJsonFeed[T app.Model](repository app.Repository[T, func(*gorm.DB) *gorm.DB]) *JsonFeed[T] {
 	return &JsonFeed[T]{repository: repository}
 }
 
 type JsonFeed[T app.Model] struct {
-	repository app.Repository[T]
+	repository app.Repository[T, func(*gorm.DB) *gorm.DB]
 }
 
 func (j *JsonFeed[T]) SaveMessage(data []byte) (T, error) {
@@ -26,5 +27,7 @@ func (j *JsonFeed[T]) SaveMessage(data []byte) (T, error) {
 }
 
 func (j *JsonFeed[T]) GetMessages() ([]T, error) {
-	return j.repository.Get(context.Background())
+	return j.repository.Get(context.Background(), func(db *gorm.DB) *gorm.DB {
+		return db.Order("created_at")
+	})
 }
